@@ -1,0 +1,246 @@
+10.  IMPLEMENT INTER-PROCESS communication using pipes, you have to the pass the message from child to parent.
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<unistd.h>
+
+int main(){
+    int pipefd[2];
+    char buffer[25];
+    pid_t pid;
+    if(pipe(pipefd)==-1){
+    printf("pipe failed\n");
+    return 1;
+    }
+    pid = fork();
+    if(pid < 0){
+    printf("fork failed\n");
+    return 1;
+    }
+    if(pid > 0){
+    close(pipefd[0]);
+    printf("parent process writing to pipe...\n");
+    write(pipefd[1],"Hello, child process!",22);
+    close(pipefd[1]);
+    }
+    else{
+    close(pipefd[1]);
+    printf("child process reading from pipe...\n");
+    read(pipefd[0],buffer,25);
+    printf("child process received : %s\n", buffer);
+    close(pipefd[0]);
+    }
+    return 0;
+    }
+
+
+
+9. Implement inter-process communication using shared memory.
+
+
+shared_sender.c
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<unistd.h>
+#include<sys/shm.h>
+#include<string.h>
+int main(){
+void *shared_memory;
+char buff[100];
+int shmid;
+shmid=shmget((key_t)1122, 1024, 0666|IPC_CREAT);
+printf("Key of shared memory is %d\n",shmid);
+shared_memory=shmat(shmid,NULL,0);
+printf("Process attached at %p\n",shared_memory);
+printf("Enter some data to write to shared memory\n");
+read(0,buff,100);
+strcpy(shared_memory,buff);
+printf("You wrote : %s\n",(char *)shared_memory);
+}
+
+
+
+
+shared_receiver.c
+
+
+#include<stdio.h>
+#include<stdlib.h>
+#include<unistd.h>
+#include<sys/shm.h>
+#include<string.h>
+int main(){
+void *shared_memory;
+char buff[100];
+int shmid;
+shmid = shmget((key_t)1122, 1024, 0666);
+printf("Key of shared memory is %d\n", shmid);
+shared_memory=shmat(shmid,NULL,0);
+printf("Process attached at %p\n",shared_memory);
+printf("Data read from shared memory is : %s\n",(char *)shared_memory);
+}
+
+
+
+
+8.Write a program on process synchronization where you have a provided the solution to race condition using mutex_lock
+
+
+#include<pthread.h>
+#include<unistd.h>
+void *fun1();
+void *fun2();
+int shared=1;
+pthread_mutex_t l;
+int main(){
+pthread_mutex_init(&l, NULL);
+pthread_t thread1, thread2;
+pthread_create(&thread1, NULL, fun1, NULL);
+pthread_create(&thread2, NULL, fun2, NULL);
+pthread_join(thread1, NULL);
+pthread_join(thread2, NULL);
+printf("Final value of shared is %d\n", shared);
+}
+
+void *fun1(){
+int x;
+printf("Thread1 trying to acquire lock\n");
+pthread_mutex_lock(&l);
+
+printf("Thread1 acquired lock\n");
+x=shared;
+printf("Thread1 reads the value of shared variable as %d\n",x);
+x++;
+printf("Local updation by Thread1: %d\n",x);
+sleep(1);
+shared=x;
+printf("Value of shared variable updated by Thread1 is: %d\n", shared);
+pthread_mutex_unlock(&l);
+printf("Thread1 released the lock\n");
+}
+
+void *fun2(){
+int y;
+printf("Thread2 trying to acquire lock\n");
+pthread_mutex_lock(&l);
+printf("Thread2 acquired lock\n");
+y=shared;
+printf("Thread2 reads the value as %d\n", y);
+y--;
+printf("Local updation by Thread2: %d\n",y);
+sleep(1);
+shared=y;
+printf("Value of shared variable updated by Thread2 is: %d\n",shared);
+pthread_mutex_unlock(&l);
+printf("Thread2 released the lock\n");
+}
+
+
+
+
+7. write a program on process synchronization, where you have to provide to solution  to race condition using semaphores.
+
+
+#include<pthread.h>
+#include<stdio.h>
+#include<semaphore.h>
+#include<unistd.h>
+
+void *fun1();
+void *fun2();
+int shared=1;
+sem_t s;
+int main(){
+sem_init(&s,0,1);
+
+pthread_t thread1, thread2;
+pthread_create(&thread1, NULL, fun1, NULL);
+pthread_create(&thread2, NULL, fun2, NULL);
+pthread_join(thread1, NULL);
+pthread_join(thread2, NULL);
+printf("Final value of shared is %d\n",shared);
+}
+
+void *fun1(){
+int x;
+sem_wait(&s);
+x=shared;
+printf("Thread reads the value as %d\n",x);
+x++;
+printf("Local updation by Thread1: %d\n",x);
+sleep(1);
+shared=x;
+printf("Value of shared variable updated by Thread1 is: %d\n", shared);
+sem_post(&s);
+}
+
+
+void *fun2()
+{
+int y;
+sem_wait(&s);
+y=shared;
+printf("Thread2 reads the value as %d\n",y);
+y--;
+printf("Local updation by Thread2: %d\n", y);
+sleep(1);
+shared=y;
+printf("Value of shared variable updated by Thread2 is: %d\n",shared);
+sem_post(&s);
+}
+
+
+
+6.  write a program using pthread to find the length of string, where strings are passed to thread function.
+
+
+
+#include <stdio.h>
+#include <pthread.h>
+#include <string.h>
+
+#define MAX_LENGTH 100
+
+struct ThreadData {
+    char *str;
+    int start;
+    int end;
+    int length;
+};
+
+void *calculate_length(void *arg) {
+    struct ThreadData *data = (struct ThreadData *)arg;
+    for (int i = data->start; i < data->end && data->str[i] != '\0'; i++) {
+        data->length++;
+    }
+    pthread_exit(NULL);
+}
+
+
+int main() {
+    pthread_t tid1, tid2;
+    char str[MAX_LENGTH];
+    printf("Enter a string: ");
+    fgets(str, MAX_LENGTH, stdin);
+    str[strcspn(str, "\n")] = '\0';
+
+    int len = strlen(str);
+    struct ThreadData data1 = {str, 0, len / 2, 0};
+    struct ThreadData data2 = {str, len / 2, len, 0};
+
+    pthread_create(&tid1, NULL, calculate_length, (void *)&data1);
+    pthread_create(&tid2, NULL, calculate_length, (void *)&data2);
+
+    pthread_join(tid1, NULL);
+    pthread_join(tid2, NULL);
+
+    int total_length = data1.length + data2.length;
+    printf("Total length of string: %d\n", total_length);
+
+    return 0;
+}
+
+
+
